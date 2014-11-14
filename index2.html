@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html>
+<head lang="en">
+    <meta charset="UTF-8">
+    <title></title>
+    <link rel="stylesheet" type="text/css" href="http://rii.uthscsa.edu/mango/papaya/papaya.css?version=0.6.5&build=692" />
+    <script type="text/javascript" src="http://rii.uthscsa.edu/mango/papaya/papaya.js?version=0.6.5&build=692"></script>
+    <!--
+    <script type="text/javascript" src="https://rawgit.com/antoniogarrote/rdfstore-js/master/dist/rdf_interface_api/browser/rdf_interface_api_min.js"></script>
+    -->
+  <link rel="stylesheet" href="http://mleibman.github.io/SlickGrid/slick.grid.css" type="text/css"/>
+  <link rel="stylesheet" href="http://mleibman.github.io/SlickGrid/css/smoothness/jquery-ui-1.8.16.custom.css" type="text/css"/>
+  <link rel="stylesheet" href="http://mleibman.github.io/SlickGrid/examples/examples.css" type="text/css"/>
+    <script type="text/javascript" src="https://rawgit.com/antoniogarrote/rdfstore-js/master/dist/browser_persistent/rdf_store_min.js"></script>
+    <script src="http://mleibman.github.io/SlickGrid/lib/jquery-1.7.min.js"></script>
+    <script src="http://mleibman.github.io/SlickGrid/lib/jquery.event.drag-2.2.js"></script>
+
+    <script src="http://mleibman.github.io/SlickGrid/slick.core.js"></script>
+    <script src="http://mleibman.github.io/SlickGrid/slick.grid.js"></script>
+    <script type="text/javascript">
+        var params = [];
+    </script>
+    <style>
+        #drop-area {
+  border: 2px dashed #bbb;
+  -moz-border-radius: 5px;
+  -webkit-border-radius: 5px;
+  border-radius: 5px;
+  padding: 25px;
+  text-align: center;
+  font: 20pt bold 'Vollkorn';
+  color: #bbb;
+}
+    </style>
+</head>
+
+<body>
+<h3>Choose file(s)</h3>
+<p>
+	<input id="files-upload" type="file" multiple>
+</p>
+<p id="drop-area">
+	<span class="drop-instructions">or drag and drop files here</span>
+	<span class="drop-over">Drop files here!</span>
+</p>
+
+<ul id="file-list"></ul>
+<div id="papaya-container">
+    <div id="papaya-viewer" style="width:100%;height:100%;"></div>
+</div>
+<div id="myGrid" style="width:600px;height:500px;"></div>
+
+<script>
+(function () {
+	var filesUpload = document.getElementById("files-upload"),
+		dropArea = document.getElementById("drop-area"),
+		fileList = document.getElementById("file-list");
+    var viewer = [];
+    store = new rdfstore.Store();
+
+	function processFiles (files) {
+	    console.log(files)
+		if (typeof files !== "undefined") {
+		    var niifiles = []
+		    var ttlfile = null
+			for (var i=0, l=files.length; i<l; i++) {
+			    console.log(files[i]);
+			    isttlfile = files[i].name.match(/ttl/g)
+			    if (isttlfile){
+			       ttlfile = files[i]
+			    }
+			    isniifile = files[i].name.match(/nii.gz/g)
+			    if (isniifile){
+			       niifiles.push(files[i])
+			    }
+			}
+			console.log(niifiles);
+			if (ttlfile){
+			       console.log('yeah: got ttl file');
+                    reader = new FileReader();
+                    reader.onload = (function (theImg) {
+                        return function (evt) {
+                            //do all the displaying of data
+                            //console.log(evt.target.result);
+                            store.load("text/turtle", evt.target.result,
+                                       function(success, results) {
+                store.execute(
+"PREFIX nidm: <http://www.incf.org/ns/nidash/nidm#> \
+PREFIX prov: <http://www.w3.org/ns/prov#> \
+SELECT DISTINCT ?cluster ?peak ?x ?y ?z ?value ?pval ?stat WHERE \
+{ ?peak a nidm:Peak . \
+  ?cluster a nidm:Cluster . \
+  ?peak prov:wasDerivedFrom ?cluster .\
+  ?peak prov:atLocation ?coordinate . \
+  ?coordinate nidm:coordinate1 ?x . \
+  ?coordinate nidm:coordinate2 ?y . \
+  ?coordinate nidm:coordinate3 ?z .\
+  ?peak prov:value ?value .\
+  ?peak nidm:qValueFDR ?pval .\
+  ?cluster prov:wasDerivedFrom/prov:wasGeneratedBy/prov:used ?statmap .\
+  ?statmap a nidm:StatisticMap . \
+  ?statmap nidm:statisticType ?stat .\
+}\
+ORDER BY ?cluster ?peak\
+",
+                function(success, results) {
+                   columns = []
+                   data = []
+                   for(var i=0; i<results.length; i++) {
+                       if (columns.length == 0){
+                           for (var key in results[i]) {
+                              columns.push({id: key, name: key, field: key})
+                           }
+                       }
+                       var datum = {}
+                       for (var key in results[i]) {
+                          datum[key] = results[i][key]["value"].replace('http://iri.nidash.org/', '').replace('http://www.incf.org/ns/nidash/nidm#', '')
+                       }
+                       data.push(datum)
+                       //console.log(datum);
+                    }
+                    //console.log(columns)
+
+                  var options = {
+                    enableCellNavigation: true,
+                    enableColumnReorder: false
+                  };
+
+                    grid = new Slick.Grid("#myGrid", data, columns, options);
+                });
+store.execute(
+"PREFIX nidm: <http://www.incf.org/ns/nidash/nidm#> \
+PREFIX prov: <http://www.w3.org/ns/prov#> \
+SELECT ?filename ?location WHERE \
+{ ?file prov:atLocation ?location . \
+  ?file nidm:filename ?filename . \
+  FILTER regex(?filename, \"TS*\")\
+}\
+",
+                function(success, results) {
+                   var niifiles2load = []
+                   for(var i=0; i<results.length; i++) {
+                       console.log(results[i]["filename"]["value"])
+                              niifiles2load.push('http://localhost:8000/' + results[i]["filename"]["value"]);
+/*
+                       for	(var index = 0; index < niifiles.length; index++) {
+                          //if (niifiles[index].name == results[i]["filename"]["value"]){
+                              //niifiles2load.push(niifiles[index]);
+                              niifiles2load.push(results[i]["location"]["value"]);
+                          //}
+                       }
+                      */
+                   }
+                   console.log(niifiles2load)
+
+                    var params = [];
+                    params["worldSpace"] = false;
+                    params["expandable"] = true;
+                    //params["kioskMode"] = true;
+                    getQueryParams(params);
+                    // papaya reads from "images"; we will insert one from the `filename` URL argument
+                    //params["images"] = niifiles2load;
+
+                    addViewer("papaya-viewer", params, function() {
+                        // callback function
+                        console.log(papayaContainers);
+                        container = papayaContainers[papayaContainers.length - 1]
+                        viewer = container.viewer
+                        viewer.resetViewer();
+                        viewer.container.clearParams();
+                        viewer.container.params.images = []
+                        viewer.container.loadingImageIndex = -1
+                        for (var i = 0; i < niifiles2load.length; i++) {
+                            viewer.container.params.images[viewer.container.params.images.length] = niifiles2load[i]
+                        }
+                        viewer.loadBaseImage('https://dl.dropbox.com/s/zxy7o6ygh93jpcy/MNI152_T1_1mm.nii.gz', true, false);
+                    });
+                });
+                                       });
+                        };
+                    }(store));
+                    reader.readAsText(ttlfile);
+			    }
+				//uploadFile(files[i]);
+
+		}
+		else {
+			fileList.innerHTML = "No support for the File API in this web browser";
+		}
+	}
+
+	filesUpload.addEventListener("change", function () {
+		processFiles(this.files);
+	}, false);
+
+	dropArea.addEventListener("dragleave", function (evt) {
+		var target = evt.target;
+
+		if (target && target === dropArea) {
+			this.className = "";
+		}
+		evt.preventDefault();
+		evt.stopPropagation();
+	}, false);
+
+	dropArea.addEventListener("dragenter", function (evt) {
+		this.className = "over";
+		evt.preventDefault();
+		evt.stopPropagation();
+	}, false);
+
+	dropArea.addEventListener("dragover", function (evt) {
+		evt.preventDefault();
+		evt.stopPropagation();
+	}, false);
+
+	dropArea.addEventListener("drop", function (evt) {
+		processFiles(evt.dataTransfer.files);
+		this.className = "";
+		evt.preventDefault();
+		evt.stopPropagation();
+	}, false);
+})();
+</script>
+</body>
+</html>
