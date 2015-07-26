@@ -2,9 +2,13 @@
 <html>
 <head lang="en">
     <meta charset="UTF-8">
-    <title></title>
+    <title>NIDM viewer</title>
+    <!--
     <link rel="stylesheet" type="text/css" href="http://rii.uthscsa.edu/mango/papaya/papaya.css?version=0.6.5&build=692" />
     <script type="text/javascript" src="http://rii.uthscsa.edu/mango/papaya/papaya.js?version=0.6.5&build=692"></script>
+    -->
+    <link rel="stylesheet" type="text/css" href="css/papaya.css"/>
+    <script type="text/javascript" src="js/papaya.js"></script>
     <!--
     <script type="text/javascript" src="https://rawgit.com/antoniogarrote/rdfstore-js/master/dist/rdf_interface_api/browser/rdf_interface_api_min.js"></script>
     -->
@@ -20,92 +24,71 @@
     <script type="text/javascript">
         var params = [];
     </script>
-    <style>
-        #drop-area {
-  border: 2px dashed #bbb;
-  -moz-border-radius: 5px;
-  -webkit-border-radius: 5px;
-  border-radius: 5px;
-  padding: 25px;
-  text-align: center;
-  font: 20pt bold 'Vollkorn';
-  color: #bbb;
-}
-    </style>
 </head>
 
 <body>
-<h3>Choose file(s)</h3>
-<p>
-	<input id="files-upload" type="file" multiple>
-</p>
-<p id="drop-area">
-	<span class="drop-instructions">or drag and drop files here</span>
-	<span class="drop-over">Drop files here!</span>
-</p>
-
-<ul id="file-list"></ul>
-<div id="papaya-container">
-    <div id="papaya-viewer" style="width:800px;height:600px;"></div>
+<div id="myform" style="width:1000px">
+<form ACTION="" METHOD="GET">
+  <input type="button" value="Click here" name="submit" style="width:200px;height:20px;" onClick="processURL(this.form.url.value);">
+  <b>Nidm URL: </b>
+  <input type="url" name="url" style="width:600px;height:20px;" value="https://dl.dropboxusercontent.com/u/363467/ds000001/RESULTS/Group/Con1/nidm_001/test.ttl">
+</form>
 </div>
-<div id="myGrid" style="width:600px;height:500px;"></div>
+
+<div style="width:600px; height:500px;">
+    <div class="papaya" data-params="params"></div>
+</div>
+
+<div id="myGrid" style="width:1024px;height:500px;"></div>
 
 <script>
-(function () {
-	var filesUpload = document.getElementById("files-upload"),
-		dropArea = document.getElementById("drop-area"),
-		fileList = document.getElementById("file-list");
-    var viewer = [];
-    store = new rdfstore.Store();
+   function getURLParameter(name) {
+       return decodeURIComponent((new RegExp('[?|&]' + name + '=' + '([^&;]+?)(&|#|;|$)').exec(location.search)||[,""])[1].replace(/\+/g, '%20'))||null
+   }
 
-	function processFiles (files) {
-	    console.log(files)
-		if (typeof files !== "undefined") {
-		    var niifiles = []
-		    var ttlfile = null
-			for (var i=0, l=files.length; i<l; i++) {
-			    console.log(files[i]);
-			    isttlfile = files[i].name.match(/ttl/g)
-			    if (isttlfile){
-			       ttlfile = files[i]
-			    }
-			    isniifile = files[i].name.match(/nii.gz/g)
-			    if (isniifile){
-			       niifiles.push(files[i])
-			    }
-			}
-			console.log(niifiles);
-			if (ttlfile){
-			       console.log('yeah: got ttl file');
-                    reader = new FileReader();
-                    reader.onload = (function (theImg) {
-                        return function (evt) {
-                            //do all the displaying of data
-                            //console.log(evt.target.result);
-                            store.load("text/turtle", evt.target.result,
-                                       function(success, results) {
+	function processURL (URL) {
+	    console.log(URL)
+
+	    $.ajax({
+    type:     "GET",
+    url:      URL,
+    success: function(data){
+        //console.log(data);
+        store = new rdfstore.Store();
+        store.load("text/turtle", data,
+            function(success, results) {
+            //console.log(results);
+
                 store.execute(
-"PREFIX nidm: <http://www.incf.org/ns/nidash/nidm#> \
+"PREFIX nidm: <http://purl.org/nidash/nidm#> \
 PREFIX prov: <http://www.w3.org/ns/prov#> \
-SELECT DISTINCT ?cluster ?peak ?x ?y ?z ?value ?pval ?stat WHERE \
-{ ?peak a nidm:Peak . \
-  ?cluster a nidm:Cluster . \
+prefix peak: <http://purl.org/nidash/nidm#NIDM_0000062> \
+prefix significant_cluster: <http://purl.org/nidash/nidm#NIDM_0000070> \
+prefix coordinate: <http://purl.org/nidash/nidm#NIDM_0000086> \
+prefix equivalent_zstatistic: <http://purl.org/nidash/nidm#NIDM_0000092> \
+prefix pvalue_fwer: <http://purl.org/nidash/nidm#NIDM_0000115> \
+prefix pvalue_uncorrected: <http://purl.org/nidash/nidm#NIDM_0000116> \
+prefix statistic_map: <http://purl.org/nidash/nidm#NIDM_0000076> \
+prefix statistic_type: <http://purl.org/nidash/nidm#NIDM_0000123> \
+prefix coordinateVector: <http://purl.org/nidash/nidm#NIDM_0000086> \
+SELECT DISTINCT ?cluster ?peak ?x ?equiv_z ?pval_fwer ?stat WHERE \
+{ ?peak a peak: . \
+  ?cluster a significant_cluster: . \
   ?peak prov:wasDerivedFrom ?cluster .\
   ?peak prov:atLocation ?coordinate . \
-  ?coordinate nidm:coordinate1 ?x . \
-  ?coordinate nidm:coordinate2 ?y . \
-  ?coordinate nidm:coordinate3 ?z .\
-  ?peak prov:value ?value .\
-  ?peak nidm:qValueFDR ?pval .\
+  ?coordinate coordinateVector: ?x . \
+  ?peak equivalent_zstatistic: ?equiv_z .\
+  ?peak pvalue_fwer: ?pval_fwer .\
   ?cluster prov:wasDerivedFrom/prov:wasGeneratedBy/prov:used ?statmap .\
-  ?statmap a nidm:StatisticMap . \
-  ?statmap nidm:statisticType ?stat .\
+  ?statmap a statistic_map: .\
+  ?statmap statistic_type: ?stat .\
 }\
 ORDER BY ?cluster ?peak\
 ",
                 function(success, results) {
                    columns = []
                    data = []
+                   console.log(results);
                    for(var i=0; i<results.length; i++) {
                        if (columns.length == 0){
                            for (var key in results[i]) {
@@ -128,99 +111,52 @@ ORDER BY ?cluster ?peak\
 
                     grid = new Slick.Grid("#myGrid", data, columns, options);
                 });
+
 store.execute(
-"PREFIX nidm: <http://www.incf.org/ns/nidash/nidm#> \
+"PREFIX nidm: <http://purl.org/nidash/nidm#> \
 PREFIX prov: <http://www.w3.org/ns/prov#> \
+prefix nfo: <http://www.semanticdesktop.org/ontologies/2007/03/22/nfo#> \
 SELECT ?filename ?location WHERE \
 { ?file prov:atLocation ?location . \
-  ?file nidm:filename ?filename . \
+  ?file nfo:fileName ?filename . \
   FILTER regex(?filename, \"TS*\")\
 }\
 ",
                 function(success, results) {
+                    var params = [];
                    var niifiles2load = []
+                   console.log(results)
                    for(var i=0; i<results.length; i++) {
-                       console.log(results[i]["filename"]["value"])
-                              niifiles2load.push('http://localhost:8000/' + results[i]["filename"]["value"]);
-/*
-                       for	(var index = 0; index < niifiles.length; index++) {
-                          //if (niifiles[index].name == results[i]["filename"]["value"]){
-                              //niifiles2load.push(niifiles[index]);
-                              niifiles2load.push(results[i]["location"]["value"]);
-                          //}
-                       }
-                      */
+                       console.log(results[i]["location"])
+                       //console.log(results[i]["location"]["value"])
+                       niifiles2load.push(results[i]["location"]["value"]);
+                       var filename = results[i]["location"]["value"].replace(/^.*[\\\/]/, '')
+                       params[filename] = {"parametric": true,  "lut":"OrRd", "negative_lut":"PuBu", "alpha":"0.75"};
                    }
                    console.log(niifiles2load)
 
-                    var params = [];
                     params["worldSpace"] = true;
                     params["expandable"] = true;
-                    //params["kioskMode"] = true;
-                    getQueryParams(params);
-                    // papaya reads from "images"; we will insert one from the `filename` URL argument
-                    //params["images"] = niifiles2load;
+                    params["luts"] = [{"name":"PuBu", "data":[[0,1,0.968627,0.984314],[0.125,0.92549,0.905882,0.94902],[0.25,0.815686,0.819608,0.901961],[0.375,0.65098,0.741176,0.858824],[0.5,0.454902,0.662745,0.811765],[0.625,0.211765,0.564706,0.752941],[0.75,0.0196078,0.439216,0.690196],[0.875,0.0156863,0.352941,0.552941],[1,0.00784314,0.219608,0.345098]]},
+                                      {"name":"OrRd", "data":[[0,1,0.968627,0.92549],[0.125,0.996078,0.909804,0.784314],[0.25,0.992157,0.831373,0.619608],[0.375,0.992157,0.733333,0.517647],[0.5,0.988235,0.552941,0.34902],[0.625,0.937255,0.396078,0.282353],[0.75,0.843137,0.188235,0.121569],[0.875,0.701961,0,0],[1,0.498039,0,0]]}];
 
-                    addViewer("papaya-viewer", params, function() {
-                        // callback function
-                        console.log(papayaContainers);
-                        container = papayaContainers[papayaContainers.length - 1]
-                        viewer = container.viewer
+                    container = papayaContainers[papayaContainers.length - 1]
+                    viewer = container.viewer
                         viewer.resetViewer();
                         viewer.container.clearParams();
+                        papaya.utilities.UrlUtils.getQueryParams(params);
                         viewer.container.params.images = []
                         viewer.container.loadingImageIndex = -1
                         for (var i = 0; i < niifiles2load.length; i++) {
                             viewer.container.params.images[viewer.container.params.images.length] = niifiles2load[i]
                         }
-                        viewer.loadBaseImage('https://dl.dropbox.com/s/zxy7o6ygh93jpcy/MNI152_T1_1mm.nii.gz', true, false);
-                    });
-                });
-                                       });
-                        };
-                    }(store));
-                    reader.readAsText(ttlfile);
-			    }
-				//uploadFile(files[i]);
+                    viewer.loadBaseImage(["MNI152_T1_1mm.nii.gz"], true, false);
 
-		}
-		else {
-			fileList.innerHTML = "No support for the File API in this web browser";
-		}
-	}
-
-	filesUpload.addEventListener("change", function () {
-		processFiles(this.files);
-	}, false);
-
-	dropArea.addEventListener("dragleave", function (evt) {
-		var target = evt.target;
-
-		if (target && target === dropArea) {
-			this.className = "";
-		}
-		evt.preventDefault();
-		evt.stopPropagation();
-	}, false);
-
-	dropArea.addEventListener("dragenter", function (evt) {
-		this.className = "over";
-		evt.preventDefault();
-		evt.stopPropagation();
-	}, false);
-
-	dropArea.addEventListener("dragover", function (evt) {
-		evt.preventDefault();
-		evt.stopPropagation();
-	}, false);
-
-	dropArea.addEventListener("drop", function (evt) {
-		processFiles(evt.dataTransfer.files);
-		this.className = "";
-		evt.preventDefault();
-		evt.stopPropagation();
-	}, false);
-})();
+                     });
+        });
+        }
+});
+};
 </script>
 </body>
 </html>
